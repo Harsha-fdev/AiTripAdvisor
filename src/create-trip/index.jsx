@@ -1,7 +1,5 @@
-
 import { Input } from '@/components/ui/input';
 import { useState } from 'react'
-import GooglePlacesAutocomplete from 'react-google-places-autocomplete';
 import { AI_PROMPT, SelectBudgetOptions } from '@/constants/options';
 import { SelectTravelList } from '@/constants/options';
 import { Button } from '@/components/ui/button';
@@ -26,12 +24,9 @@ import { useNavigate } from 'react-router-dom';
 
 function Createtrip() {
   const [Place, setPlace] = useState();
-
   const [OpenDialog, setOpenDialog] = useState(false);
-
   const [formData, setformData] = useState([]);
-
-  const[loading , setloading] = useState(false);
+  const [loading, setloading] = useState(false);
 
   //this is to navigate to new page
   const navigate = useNavigate();
@@ -45,14 +40,13 @@ function Createtrip() {
 
   useEffect(() => {
     console.log(formData);
-  }, [formData])
+  }, [formData]);
 
-//login function
+  //login function
   const login = useGoogleLogin({
     onSuccess: (codeResp) => GetUserProfile(codeResp),
     onError: (error) => console.log(error)
-  })
-
+  });
 
   //this is to generate the trip details  
   const OnGenerateTrip = async () => {
@@ -78,20 +72,19 @@ function Createtrip() {
       .replace('{budget}', formData?.Budget)
       .replace('{totalDays}', formData?.noOfDays)
 
-
-      try {
-        const result = await chatSession.sendMessage(FINAL_PROMPT);
-        console.log(result?.response?.text());
-        SaveAiTrip(result?.response?.text());
-      } catch (error) {
-        console.error("Error generating trip:", error);
-        toast("Error generating trip, please try again.");
-      } finally {
-        setloading(false);
-      }
+    try {
+      const result = await chatSession.sendMessage(FINAL_PROMPT);
+      console.log(result?.response?.text());
+      SaveAiTrip(result?.response?.text());
+    } catch (error) {
+      console.error("Error generating trip:", error);
+      toast("Error generating trip, please try again.");
+    } finally {
+      setloading(false);
+    }
   }
 
-//firebase related  
+  //firebase related  
   const SaveAiTrip = async (TripData) => {
     setloading(true);
     try {
@@ -136,9 +129,53 @@ function Createtrip() {
     }
   };
 
+  // Option 2: Function to handle place search using Nominatim API
+  const handlePlaceSearch = async (searchTerm) => {
+    try {
+      if (!searchTerm) return;  // If search term is empty, do nothing
+
+      setloading(true);
+
+      // Fetch places from Nominatim API (OpenStreetMap)
+      const response = await axios.get(`https://nominatim.openstreetmap.org/search`, {
+        params: {
+          q: searchTerm,
+          format: 'json',
+          limit: 5,  // Limit results to 5 for better performance
+        }
+      });
+
+      if (response.data && response.data.length > 0) {
+        // Pick the first result
+        const location = response.data[0];
+
+        // Set the location as a place with lat, lon, and display name
+        setPlace({
+          label: location.display_name,
+          lat: location.lat,
+          lon: location.lon,
+        });
+
+        HandleinputChange('Location', {
+          label: location.display_name,
+          lat: location.lat,
+          lon: location.lon,
+        });
+
+      } else {
+        // If no results found, clear the place
+        setPlace(null);
+        toast("No places found, try a different search.");
+      }
+    } catch (error) {
+      console.error('Error fetching location:', error);
+      toast("Error searching for places, please try again.");
+    } finally {
+      setloading(false);
+    }
+  };
 
   return (
-
     <div className='sm:px-10 md:px-32 lg:px-56 xl:px-10 px-5 mt-10'>
       <h2 className='font-bold text-3xl'>
         Tell us your Travel preference 🏕️
@@ -150,13 +187,14 @@ function Createtrip() {
       <div className='mt-20 flex flex-col gap-10'>
         <div>
           <h2 className='text-xl my-3 font-medium'>What is your destination of choice?</h2>
-          <GooglePlacesAutocomplete
-            apiKey={import.meta.env.VITE_GOOGLE_PLACE_API_KEY}
-            selectProps={{
-              Place,
-              onChange: (v) => { setPlace(v); HandleinputChange('Location', v) }
-            }}
+          {/* Option 2: Replace Google Places with manual input */}
+          <Input
+            placeholder="Enter a location"
+            onChange={(e) => handlePlaceSearch(e.target.value)}
           />
+          {Place && (
+            <p className="mt-2 text-gray-500">{Place.label}</p>
+          )}
         </div>
       </div>
 
@@ -190,8 +228,7 @@ function Createtrip() {
             <div key={index}
               onClick={() => HandleinputChange('Traveler', item.peoples)}
               className={`p-4 border cursor-pointer rounded-lg hover:shadow-lg 
-                ${formData?.Traveler === item.peoples ? 'shadow-lg border-black' : ''}`}
-            >
+                ${formData?.Traveler === item.peoples ? 'shadow-lg border-black' : ''}`}>
               <h2 className='text-4xl'>{item.icon}</h2>
               <h2 className='font-bold text-lg'>{item.title}</h2>
               <h2 className='text-sm text-gray-500'>{item.desc}</h2>
@@ -204,34 +241,35 @@ function Createtrip() {
         <Button 
         disabled={loading}
         onClick={OnGenerateTrip}>
-          {loading?
-          <AiOutlineLoading className='h-7 w-7 animate-spin'/>:
+          {loading ?
+            <AiOutlineLoading className='h-7 w-7 animate-spin' /> :
             'Generate Trip'
           }
-          </Button>
+        </Button>
       </div>
-  {/* this is dialog box where your loading set your account login takes place*/}
+
+      {/* this is dialog box where your loading set your account login takes place */}
       <Dialog open={OpenDialog} onOpenChange={setOpenDialog}> 
         <DialogContent>
           <DialogHeader>
             <DialogDescription>
               <img src="/logo.jpeg" alt="" className='w-[3.5rem]' />
-              <h2 className='font-bold text-lg mt-7 mb-2'>Sign in with Google</h2>
-              <p>Sign in to the App with Google Authentication securely</p>
-
-              <Button 
-                onClick={login}
-                className="w-full mt-5 items-center">
-                  <FcGoogle className="h-7 w-7" />Sign in with Google 
-              </Button>
-              
+              <h2 className='font-bold text-lg'>Please Login</h2>
+              <p className='my-2'>
+                You need to be logged in to proceed with the trip generation.
+              </p>
             </DialogDescription>
+            <DialogTitle>Login with Google</DialogTitle>
           </DialogHeader>
+          <div className='mt-5 flex justify-center'>
+            <Button onClick={() => login()} className="border-2 border-black w-[18rem] hover:bg-[#dedede]">
+              <FcGoogle className='w-7 h-7' /> Continue with Google
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
-
     </div>
-  )
+  );
 }
 
 export default Createtrip;
